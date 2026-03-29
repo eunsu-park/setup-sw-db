@@ -66,8 +66,10 @@ def _validate_single(file_path_str: str) -> tuple[str, dict | str]:
     return (file_path_str, result)
 
 
-def _validate_parallel(files: list[Path], parallel: int) -> list[tuple[str, dict | str]]:
-    """Validate FITS files in parallel using ProcessPoolExecutor.
+def _validate_batch(files: list[Path], parallel: int) -> list[tuple[str, dict | str]]:
+    """Validate a batch of FITS files.
+
+    Uses ProcessPoolExecutor when parallel > 1, otherwise validates sequentially.
 
     Args:
         files: List of FITS file paths.
@@ -76,106 +78,70 @@ def _validate_parallel(files: list[Path], parallel: int) -> list[tuple[str, dict
     Returns:
         List of (file_path_str, validation_result) tuples in original order.
     """
-    from concurrent.futures import ProcessPoolExecutor
-
     file_strs = [str(f) for f in files]
-    total = len(file_strs)
-    chunksize = max(1, total // (parallel * 20))
-    results = []
 
-    with ProcessPoolExecutor(max_workers=parallel) as executor:
-        for i, result in enumerate(executor.map(_validate_single, file_strs,
-                                                chunksize=chunksize)):
-            results.append(result)
-            if (i + 1) % 5000 == 0 or i + 1 == total:
-                print(f"  Validated {i + 1}/{total} ({(i + 1) * 100 // total}%)",
-                      flush=True)
+    if parallel > 1:
+        from concurrent.futures import ProcessPoolExecutor
+
+        chunksize = max(1, len(file_strs) // (parallel * 4))
+        with ProcessPoolExecutor(max_workers=parallel) as executor:
+            results = list(executor.map(_validate_single, file_strs,
+                                        chunksize=chunksize))
+    else:
+        results = [_validate_single(f) for f in file_strs]
 
     return results
 
 
-def process_files(files: list[Path], download_root: str, dir_config: dict,
-                  db_config: dict, batch_size: int = 1000,
-                  move: bool = True, parallel: int = 1,
-                  verbose: bool = False) -> dict:
-    """Validate, classify, move, and register FITS files.
-
-    Auto-detects telescope and channel from FITS headers.
-    Validation is parallelized; file moves and DB inserts are sequential.
+def _process_batch(validation_results: list[tuple[str, dict | str]],
+                   download_root: str, dir_config: dict, db_config: dict,
+                   move: bool, verbose: bool, counts: dict) -> int:
+    """Process a validated batch: insert to DB, then move files.
 
     Args:
-        files: List of FITS file paths to process.
+        validation_results: List of (file_path_str, validation_result) tuples.
         download_root: Root directory for file storage.
         dir_config: Directory configuration for error subdirs.
         db_config: Database configuration.
-        batch_size: Number of records per batch insert.
         move: If True, move files to target directories.
-        parallel: Number of parallel validation workers.
         verbose: If True, print details for each file.
+        counts: Shared counts dict to update in place.
 
     Returns:
-        Dict with counts: valid, invalid_file, invalid_header, invalid_data, skipped.
+        Number of records inserted.
     """
     import pandas as pd
 
     root = Path(download_root)
-    counts = {
-        'valid': 0,
-        'invalid_file': 0,
-        'invalid_header': 0,
-        'invalid_data': 0,
-        'skipped': 0,
-    }
-
-    # Phase 1: Validate files (parallelized)
-    if parallel > 1:
-        print(f"  Validating {len(files)} files with {parallel} workers...",
-              flush=True)
-        validation_results = _validate_parallel(files, parallel)
-    else:
-        total = len(files)
-        validation_results = []
-        for i, f in enumerate(files):
-            validation_results.append(_validate_single(str(f)))
-            if (i + 1) % 5000 == 0 or i + 1 == total:
-                print(f"  Validated {i + 1}/{total} ({(i + 1) * 100 // total}%)",
-                      flush=True)
-
-    # Phase 2: Move files and build DB records (sequential)
-    print(f"  Processing validated files...", flush=True)
     records = []
-    total_inserted = 0
+    valid_moves = []  # (source, target) pairs to move after DB insert
+    invalid_moves = []  # (source, target) pairs for invalid files
 
-    for i, (file_path_str, result) in enumerate(validation_results):
+    for file_path_str, result in validation_results:
         file_path = Path(file_path_str)
 
         if isinstance(result, str):
-            # Error case
             counts[result] = counts.get(result, 0) + 1
 
             if move and result in dir_config:
                 target_dir = root / dir_config[result]
-                target_dir.mkdir(parents=True, exist_ok=True)
                 target_path = target_dir / file_path.name
                 if target_path != file_path:
-                    shutil.move(str(file_path), str(target_path))
+                    invalid_moves.append((file_path, target_path))
 
             if verbose:
                 print(f"    {result}: {file_path.name}")
             continue
 
-        # Valid file - extract metadata
         telescope = result.get('telescope')
         channel = result.get('channel')
         dt = tai_to_utc(result['datetime'], telescope)
 
         if move:
             target_dir = get_target_path(download_root, telescope, dt)
-            target_dir.mkdir(parents=True, exist_ok=True)
             target_path = target_dir / file_path.name
 
             if target_path == file_path:
-                # Already in correct location
                 pass
             elif target_path.exists():
                 counts['skipped'] += 1
@@ -183,7 +149,7 @@ def process_files(files: list[Path], download_root: str, dir_config: dict,
                     print(f"    skipped (exists): {file_path.name}")
                 continue
             else:
-                shutil.move(str(file_path), str(target_path))
+                valid_moves.append((file_path, target_path))
         else:
             target_path = file_path
 
@@ -202,21 +168,79 @@ def process_files(files: list[Path], download_root: str, dir_config: dict,
         if verbose:
             print(f"    valid: {file_path.name} -> {telescope}/{channel} {dt}")
 
-        # Batch insert
-        if len(records) >= batch_size:
-            df = pd.DataFrame(records)
-            inserted = upsert(df, 'sdo', db_config,
-                              conflict_columns=['telescope', 'channel', 'datetime'])
-            total_inserted += inserted
-            print(f"  Processed {i + 1}/{len(files)} files, inserted {inserted} records")
-            records = []
-
-    # Insert remaining records
+    # Step 1: DB insert
+    inserted = 0
     if records:
         df = pd.DataFrame(records)
         inserted = upsert(df, 'sdo', db_config,
                           conflict_columns=['telescope', 'channel', 'datetime'])
+
+    # Step 2: Move valid files after successful DB insert
+    for source, target in valid_moves:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+
+    # Step 3: Move invalid files
+    for source, target in invalid_moves:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+
+    return inserted
+
+
+def process_files(files: list[Path], download_root: str, dir_config: dict,
+                  db_config: dict, batch_size: int = 1000,
+                  move: bool = True, parallel: int = 1,
+                  verbose: bool = False) -> dict:
+    """Validate, register, and move FITS files in batches.
+
+    Each batch is processed as: validate -> DB upsert -> move files.
+    This ensures progress is visible during processing and files are only
+    moved after successful DB insertion.
+
+    Args:
+        files: List of FITS file paths to process.
+        download_root: Root directory for file storage.
+        dir_config: Directory configuration for error subdirs.
+        db_config: Database configuration.
+        batch_size: Number of files per batch.
+        move: If True, move files to target directories.
+        parallel: Number of parallel validation workers.
+        verbose: If True, print details for each file.
+
+    Returns:
+        Dict with counts: valid, invalid_file, invalid_header, invalid_data, skipped.
+    """
+    total = len(files)
+    counts = {
+        'valid': 0,
+        'invalid_file': 0,
+        'invalid_header': 0,
+        'invalid_data': 0,
+        'skipped': 0,
+    }
+    total_inserted = 0
+
+    for start in range(0, total, batch_size):
+        batch = files[start:start + batch_size]
+        end = min(start + len(batch), total)
+
+        # Step 1: Validate batch
+        validation_results = _validate_batch(batch, parallel)
+
+        # Step 2: DB insert, then move files
+        inserted = _process_batch(
+            validation_results, download_root, dir_config, db_config,
+            move, verbose, counts,
+        )
         total_inserted += inserted
+
+        print(f"  Batch {start + 1}-{end}/{total}: "
+              f"inserted {inserted}, "
+              f"valid {counts['valid']}, "
+              f"invalid {counts['invalid_file'] + counts['invalid_header'] + counts['invalid_data']}, "
+              f"skipped {counts['skipped']}",
+              flush=True)
 
     counts['db_inserted'] = total_inserted
     return counts
