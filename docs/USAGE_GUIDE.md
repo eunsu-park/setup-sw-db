@@ -398,7 +398,7 @@ python scripts/register_secchi.py --clean-orphans
 All downloaded files are organized into a date-based directory structure:
 
 ```
-/opt/archive/
+/opt/nas/archive/
 ├── sdo/
 │   ├── aia/{YYYY}/{YYYYMMDD}/*.fits
 │   ├── hmi/{YYYY}/{YYYYMMDD}/*.fits
