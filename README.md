@@ -63,6 +63,8 @@ python scripts/download_omni.py --lowres --start 2020 --end 2024
 python scripts/download_omni.py --highres --highres-5min --start 2024 --end 2024
 ```
 
+> At least one resolution flag (`--lowres`, `--highres`, `--highres-5min`, or `--all`) is required.
+
 ### Download HPo Geomagnetic Indices
 
 ```bash
