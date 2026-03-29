@@ -5,7 +5,7 @@ Solar and space weather database management system for downloading, validating, 
 ## Features
 
 - **Solar Image Data**: Download and manage FITS images from LASCO (SOHO), SDO (AIA/HMI), and SECCHI (STEREO)
-- **Space Weather Indices**: Ingest OMNI solar wind data (hourly, 1-min, 5-min resolution)
+- **Space Weather Indices**: Ingest OMNI solar wind data (hourly, 1-min, 5-min resolution) and HPo geomagnetic indices (Hp30/Hp60)
 - **FITS Validation**: Automated quality checks on solar image metadata and pixel data
 - **Database Management**: PostgreSQL-based storage with composite primary keys, upsert support, and orphan cleanup
 
@@ -48,7 +48,7 @@ python scripts/create_all_tables.py
 
 This creates two PostgreSQL databases:
 - `solar_images` - tables: `lasco`, `sdo`, `secchi`
-- `space_weather` - tables: `omni_low_resolution`, `omni_high_resolution`, `omni_high_resolution_5min`
+- `space_weather` - tables: `omni_low_resolution`, `omni_high_resolution`, `omni_high_resolution_5min`, `hpo_hp30`, `hpo_hp60`
 
 ## Usage
 
@@ -61,6 +61,16 @@ python scripts/download_omni.py --all --start 2020 --end 2024
 # Specific resolution
 python scripts/download_omni.py --lowres --start 2020 --end 2024
 python scripts/download_omni.py --highres --highres-5min --start 2024 --end 2024
+```
+
+### Download HPo Geomagnetic Indices
+
+```bash
+# Full historical series (1985-present)
+python scripts/download_hpo.py --all --mode complete
+
+# Last 30 days (incremental update)
+python scripts/download_hpo.py --all --mode nowcast
 ```
 
 ### Download Solar Images
@@ -109,7 +119,7 @@ setup-sw-db/
 │   ├── database.py                 # DB creation, table management, insert/upsert
 │   ├── download.py                 # HTTP download with retry and parallel support
 │   ├── lasco.py                    # LASCO-specific query, download, metadata
-│   ├── parse.py                    # OMNI data parsing, FITS datetime parsing
+│   ├── parse.py                    # OMNI/HPo data parsing, FITS datetime parsing
 │   ├── query.py                    # DB query functions (best match, time range)
 │   ├── sdo.py                      # SDO/JSOC query, FITS validation, TAI-UTC conversion
 │   ├── secchi.py                   # SECCHI metadata extraction
@@ -117,6 +127,7 @@ setup-sw-db/
 ├── scripts/
 │   ├── create_all_tables.py        # Initialize all databases and tables
 │   ├── download_omni.py            # Download OMNI solar wind data
+│   ├── download_hpo.py             # Download HPo geomagnetic indices (Hp30/Hp60)
 │   ├── download_sdo.py             # Download SDO images via JSOC
 │   ├── download_lasco.py           # Download LASCO images via VSO
 │   ├── download_secchi.py          # Download SECCHI images
@@ -136,6 +147,7 @@ setup-sw-db/
 | LASCO | VSO / NRL Archive | `sunpy` Fido / HTTP |
 | SECCHI | NASA SECCHI Archive | HTTP directory listing |
 | OMNI | NASA SPDF | HTTP download |
+| HPo (Hp30/Hp60) | GFZ Potsdam | HTTP download |
 
 ## License
 
