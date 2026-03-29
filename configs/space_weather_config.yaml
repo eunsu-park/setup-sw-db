@@ -253,11 +253,13 @@ download_config:
     save_dir: /opt/archive/space_weather/omni/high_resolution_5min
 
   hpo_hp30:
-    url_complete: "https://kp.gfz.de/app/files/Hp30_ap30_complete_series.txt"
+    url_pattern: "https://kp.gfz.de/app/json/?start={year}-01-01T00:00:00Z&end={year}-12-31T23:59:59Z&index={index}"
+    indexes: [Hp30, ap30]
     url_nowcast: "https://www-app3.gfz.de/kp_index/Hp30_ap30_nowcast.txt"
     save_dir: /opt/archive/space_weather/hpo/hp30
 
   hpo_hp60:
-    url_complete: "https://kp.gfz.de/app/files/Hp60_ap60_complete_series.txt"
+    url_pattern: "https://kp.gfz.de/app/json/?start={year}-01-01T00:00:00Z&end={year}-12-31T23:59:59Z&index={index}"
+    indexes: [Hp60, ap60]
     url_nowcast: "https://www-app3.gfz.de/kp_index/Hp60_ap60_nowcast.txt"
     save_dir: /opt/archive/space_weather/hpo/hp60
