@@ -70,12 +70,12 @@ schema_config:
 download_config:
   # LASCO download settings
   lasco:
-    download_root: "/opt/archive/solar_images/lasco"
+    download_root: "/opt/nas/archive/solar_images/lasco"
     cameras: ["c2", "c3"]  # Available: c1, c2, c3, c4
 
   # SDO download settings
   sdo:
-    download_root: "/opt/archive/sdo"
+    download_root: "/opt/nas/archive/sdo"
     # Subdirectories for file classification
     dirs:
       aia: "aia"
@@ -87,7 +87,7 @@ download_config:
 
   # SECCHI download settings
   secchi:
-    download_root: "/opt/archive/solar_images/secchi"
+    download_root: "/opt/nas/archive/solar_images/secchi"
     datatypes: ["science", "beacon"]
     spacecrafts: ["ahead", "behind"]
     instruments: ["cor1", "cor2", "euvi", "hi_1", "hi_2"]
