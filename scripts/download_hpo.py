@@ -2,55 +2,84 @@
 
 Downloads Hp30/Hp60 data from GFZ Potsdam and stores in space_weather database.
 Supports two modes:
-  --mode complete: Download full historical series (1985-present), truncate and bulk insert.
-  --mode nowcast:  Download last 30 days, upsert new records only.
+  Year-based (default): Download via JSON API per year, replace by year.
+  --nowcast:            Download last 30 days from text endpoint, upsert new records.
 """
 import argparse
+from datetime import datetime
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from egghouse.database import PostgresManager
+from core import (
+    load_config, download, download_json, parse_hpo, parse_hpo_json,
+    insert, upsert, HP30, HP60,
+)
 
-from core import load_config, download, parse_hpo, insert, upsert, HP30, HP60
+
+def process_year(year: int, spec: dict, db_config: dict,
+                 download_config: dict) -> int:
+    """Download and ingest one year of HPo data via JSON API.
+
+    Args:
+        year: Year to process.
+        spec: Data specification (HP30 or HP60).
+        db_config: Database configuration.
+        download_config: Download configuration for this table.
+
+    Returns:
+        Number of records inserted.
+    """
+    url_pattern = download_config['url_pattern']
+    indexes = download_config['indexes']
+    table = spec['table']
+
+    hp_url = url_pattern.format(year=year, index=indexes[0])
+    ap_url = url_pattern.format(year=year, index=indexes[1])
+
+    hp_data = download_json(hp_url)
+    if hp_data is None:
+        return 0
+
+    ap_data = download_json(ap_url)
+    if ap_data is None:
+        return 0
+
+    df = parse_hpo_json(hp_data, ap_data, spec)
+    count = insert(df, table, db_config, replace_key={'year': year})
+
+    return count
 
 
-def process_hpo(spec: dict, db_config: dict, download_config: dict,
-                mode: str = 'nowcast') -> int:
-    """Download and ingest one HPo dataset.
+def process_nowcast(spec: dict, db_config: dict,
+                    download_config: dict) -> int:
+    """Download and ingest last 30 days of HPo data via text endpoint.
 
     Args:
         spec: Data specification (HP30 or HP60).
         db_config: Database configuration.
         download_config: Download configuration for this table.
-        mode: 'complete' for full series, 'nowcast' for last 30 days.
 
     Returns:
         Number of records inserted.
     """
-    url_key = f'url_{mode}'
-    url = download_config[url_key]
+    url = download_config['url_nowcast']
     table = spec['table']
 
-    timeout = 120 if mode == 'complete' else 30
-    text = download(url, timeout=timeout)
+    text = download(url, timeout=30)
     if text is None:
         return 0
 
     df = parse_hpo(text, spec)
-
-    if mode == 'complete':
-        with PostgresManager(**db_config) as db:
-            db.execute(f"TRUNCATE TABLE {table}")
-        count = insert(df, table, db_config)
-    else:
-        count = upsert(df, table, db_config, conflict_columns='datetime')
+    count = upsert(df, table, db_config, conflict_columns='datetime')
 
     return count
 
 
 def main():
     """Main entry point."""
+    current_year = datetime.now().year
+
     parser = argparse.ArgumentParser(description='HPo Geomagnetic Index Downloader')
     parser.add_argument('--hp30', action='store_true',
                         help='Download Hp30 (30-min) data')
@@ -58,9 +87,12 @@ def main():
                         help='Download Hp60 (60-min) data')
     parser.add_argument('--all', action='store_true',
                         help='Download both Hp30 and Hp60')
-    parser.add_argument('--mode', choices=['complete', 'nowcast'],
-                        default='nowcast',
-                        help='Download mode (default: nowcast)')
+    parser.add_argument('--start', type=int, default=1985,
+                        help='Start year (default: 1985)')
+    parser.add_argument('--end', type=int, default=current_year,
+                        help=f'End year (default: {current_year})')
+    parser.add_argument('--nowcast', action='store_true',
+                        help='Download last 30 days (incremental upsert)')
     parser.add_argument('--config', type=str,
                         default='configs/space_weather_config.yaml',
                         help='Config file path')
@@ -80,20 +112,33 @@ def main():
 
     print("HPo Geomagnetic Index Downloader")
     print(f"Database: {db_config.get('database', 'unknown')}")
-    print(f"Mode: {args.mode}")
+    if args.nowcast:
+        print("Mode: nowcast (last 30 days)")
+    else:
+        print(f"Year range: {args.start} to {args.end}")
     print()
 
     if args.hp30:
         print("[Hp30 - 30min resolution]")
         hp30_config = download_config.get('hpo_hp30')
-        count = process_hpo(HP30, db_config, hp30_config, mode=args.mode)
-        print(f"  {count} records inserted")
+        if args.nowcast:
+            count = process_nowcast(HP30, db_config, hp30_config)
+            print(f"  {count} records inserted")
+        else:
+            for year in range(args.start, args.end + 1):
+                count = process_year(year, HP30, db_config, hp30_config)
+                print(f"  {year}: {count} records")
 
     if args.hp60:
         print("\n[Hp60 - 60min resolution]")
         hp60_config = download_config.get('hpo_hp60')
-        count = process_hpo(HP60, db_config, hp60_config, mode=args.mode)
-        print(f"  {count} records inserted")
+        if args.nowcast:
+            count = process_nowcast(HP60, db_config, hp60_config)
+            print(f"  {count} records inserted")
+        else:
+            for year in range(args.start, args.end + 1):
+                count = process_year(year, HP60, db_config, hp60_config)
+                print(f"  {year}: {count} records")
 
 
 if __name__ == '__main__':
