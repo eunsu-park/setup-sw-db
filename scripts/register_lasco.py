@@ -132,7 +132,7 @@ def main():
 
     # Get download root
     download_config = config['download_config'].get('lasco', {})
-    download_root = download_config.get('download_root', '/opt/archive/solar_images/lasco')
+    download_root = download_config.get('download_root', '/opt/nas/archive/solar_images/lasco')
 
     # Initialize database if requested
     if args.init_db:

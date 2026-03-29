@@ -281,7 +281,7 @@ def main():
 
     # Get download config
     download_config = config['download_config'].get('sdo', {})
-    download_root = download_config.get('download_root', '/opt/archive/sdo')
+    download_root = download_config.get('download_root', '/opt/nas/archive/sdo')
     dir_config = download_config.get('dirs', {
         'aia': 'aia',
         'hmi': 'hmi',

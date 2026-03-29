@@ -168,7 +168,7 @@ def main():
 
     # Get download root
     download_config = config['download_config'].get('secchi', {})
-    download_root = download_config.get('download_root', '/opt/archive/solar_images/secchi')
+    download_root = download_config.get('download_root', '/opt/nas/archive/solar_images/secchi')
 
     # Initialize database if requested
     if args.init_db:

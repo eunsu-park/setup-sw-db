@@ -180,7 +180,7 @@ def main():
     db_config = config['db_config']
 
     download_config = config['download_config'].get('sdo', {})
-    download_root = download_config.get('download_root', '/opt/archive/sdo')
+    download_root = download_config.get('download_root', '/opt/nas/archive/sdo')
     dir_config = download_config.get('dirs', {
         'downloaded': 'downloaded',
         'invalid_file': 'invalid_file',
