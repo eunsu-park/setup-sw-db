@@ -34,7 +34,7 @@ python scripts/download_sdo.py --days 7
 python scripts/download_lasco.py --days 7
 python scripts/download_secchi.py --days 7
 python scripts/download_omni.py --all --start 2020 --end 2024
-python scripts/download_hpo.py --all --mode complete
+python scripts/download_hpo.py --all --start 2020 --end 2024
 ```
 
 ---
@@ -299,10 +299,9 @@ python scripts/download_omni.py --highres --highres-5min --start 2024 --end 2024
 Download Hp30/Hp60 geomagnetic activity indices from GFZ Potsdam.
 
 ```bash
-python scripts/download_hpo.py --all --mode complete          # Full series (1985-present)
-python scripts/download_hpo.py --all                          # Last 30 days (nowcast, default)
-python scripts/download_hpo.py --hp30 --mode nowcast          # Hp30 only
-python scripts/download_hpo.py --hp60 --mode complete         # Hp60 full series only
+python scripts/download_hpo.py --all --start 2020 --end 2024
+python scripts/download_hpo.py --hp30 --start 1985 --end 2024
+python scripts/download_hpo.py --all --nowcast
 ```
 
 | Argument | Default | Description |
@@ -310,11 +309,13 @@ python scripts/download_hpo.py --hp60 --mode complete         # Hp60 full series
 | `--hp30` | False | Download Hp30 (30-min resolution) data |
 | `--hp60` | False | Download Hp60 (60-min resolution) data |
 | `--all` | False | Download both Hp30 and Hp60 |
-| `--mode` | nowcast | `complete` (full series) or `nowcast` (last 30 days) |
+| `--start` | 1985 | Start year |
+| `--end` | current year | End year |
+| `--nowcast` | False | Download last 30 days (incremental upsert) |
 | `--config` | configs/space_weather_config.yaml | Config file path |
 
 > At least one of `--hp30`, `--hp60`, or `--all` is required.
-> `complete` mode truncates existing data before inserting. `nowcast` mode upserts (skips duplicates).
+> Year-based mode replaces data per year. `--nowcast` mode upserts (skips duplicates).
 
 **Data Source**: [GFZ Potsdam Hpo Index](https://kp.gfz.de/en/hp30-hp60/data)
 
@@ -330,7 +331,7 @@ python scripts/download_sdo.py --start-date 2024-01-01 --end-date 2024-12-31 --p
 python scripts/download_lasco.py --cameras c2 c3 --start-date 2024-01-01 --end-date 2024-12-31
 python scripts/download_secchi.py --instruments cor1 cor2 euvi --start-date 2024-01-01 --end-date 2024-12-31
 python scripts/download_omni.py --all --start 2020 --end 2024
-python scripts/download_hpo.py --all --mode complete
+python scripts/download_hpo.py --all --start 2020 --end 2024
 ```
 
 ### Query & Offline Download (SDO)
@@ -357,7 +358,7 @@ python scripts/register_secchi.py --spacecrafts ahead behind --instruments cor1 
 python scripts/download_sdo.py --days 7 --parallel 8
 python scripts/download_lasco.py --days 7
 python scripts/download_secchi.py --days 7
-python scripts/download_hpo.py --all
+python scripts/download_hpo.py --all --nowcast
 ```
 
 ### Cleanup Orphan Records
@@ -439,4 +440,4 @@ Override the config file path with `--config` on any script.
 4. **JSOC URL Expiry**: URLs from `query_sdo.py` expire after ~24 hours. A warning is displayed if the JSON file is older.
 5. **OMNI Replacement**: OMNI data is replaced per year — re-downloading a year overwrites previous records.
 6. **Upsert Behavior**: All insert operations use ON CONFLICT DO NOTHING. Duplicate records are silently skipped.
-7. **HPo Complete Mode**: `--mode complete` truncates the entire table before inserting. Use `--mode nowcast` for incremental updates.
+7. **HPo Year-Based Mode**: Default mode downloads via GFZ JSON API per year, replacing data per year. Use `--nowcast` for incremental updates (last 30 days).

@@ -68,11 +68,12 @@ python scripts/download_omni.py --highres --highres-5min --start 2024 --end 2024
 ### Download HPo Geomagnetic Indices
 
 ```bash
-# Full historical series (1985-present)
-python scripts/download_hpo.py --all --mode complete
+# Year-based download (default)
+python scripts/download_hpo.py --all --start 2020 --end 2024
+python scripts/download_hpo.py --hp30 --start 1985 --end 2024
 
 # Last 30 days (incremental update)
-python scripts/download_hpo.py --all --mode nowcast
+python scripts/download_hpo.py --all --nowcast
 ```
 
 ### Download Solar Images
