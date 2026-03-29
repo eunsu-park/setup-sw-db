@@ -1,0 +1,227 @@
+# space_weather_config.yaml
+# Database configuration for space weather time series data (OMNI, ACE, DSCOVR, etc.)
+
+db_config:
+  host: ${DB_HOST:localhost}
+  port: 5432
+  database: space_weather
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+  log_queries: false
+
+schema_config:
+  # ============================================================================
+  # OMNI Low Resolution (Hourly) - 55 columns
+  # ============================================================================
+  omni_low_resolution:
+    # Time information (4)
+    datetime: TIMESTAMP PRIMARY KEY
+    year: INTEGER NOT NULL
+    decimal_day: INTEGER NOT NULL
+    hour: INTEGER NOT NULL
+
+    # Metadata (5)
+    bartels_rotation_number: INTEGER
+    imf_sc_id: SMALLINT
+    sw_plasma_sc_id: SMALLINT
+    imf_avg_points: INTEGER
+    plasma_avg_points: INTEGER
+
+    # Magnetic field data (14)
+    b_field_magnitude_avg_nt: REAL
+    b_magnitude_of_avg_field_vector_nt: REAL
+    b_lat_angle_avg_field_vector_deg: REAL
+    b_long_angle_avg_field_vector_deg: REAL
+    bx_gse_gsm_nt: REAL
+    by_gse_nt: REAL
+    bz_gse_nt: REAL
+    by_gsm_nt: REAL
+    bz_gsm_nt: REAL
+    sigma_b_magnitude_nt: REAL
+    sigma_b_vector_nt: REAL
+    sigma_bx_nt: REAL
+    sigma_by_nt: REAL
+    sigma_bz_nt: REAL
+
+    # Plasma data (14)
+    proton_temperature_k: REAL
+    proton_density_n_cm3: REAL
+    plasma_flow_speed_km_s: REAL
+    plasma_flow_long_angle_deg: REAL
+    plasma_flow_lat_angle_deg: REAL
+    na_np_ratio: REAL
+    flow_pressure_npa: REAL
+    sigma_temperature_k: REAL
+    sigma_density_n_cm3: REAL
+    sigma_flow_speed_km_s: REAL
+    sigma_phi_v_deg: REAL
+    sigma_theta_v_deg: REAL
+    sigma_na_np: REAL
+    electric_field_mv_m: REAL
+    plasma_beta: REAL
+    alfven_mach_number: REAL
+
+    # Geomagnetic indices (10)
+    kp_index: SMALLINT
+    sunspot_number_r: INTEGER
+    dst_index_nt: INTEGER
+    ae_index_nt: INTEGER
+    proton_flux_gt1mev: REAL
+    proton_flux_gt2mev: REAL
+    proton_flux_gt4mev: REAL
+    proton_flux_gt10mev: REAL
+    proton_flux_gt30mev: REAL
+    proton_flux_gt60mev: REAL
+
+    # Other indices and data (8)
+    flag: SMALLINT
+    ap_index_nt: INTEGER
+    f10_7_index_sfu: REAL
+    pc_n_index: REAL
+    al_index_nt: INTEGER
+    au_index_nt: INTEGER
+    magnetosonic_mach_number: REAL
+
+  # ============================================================================
+  # OMNI High Resolution (1-min) - 46 columns
+  # ============================================================================
+  omni_high_resolution:
+    # Time information (5)
+    datetime: TIMESTAMP PRIMARY KEY
+    year: INTEGER NOT NULL
+    day: INTEGER NOT NULL
+    hour: INTEGER NOT NULL
+    minute: INTEGER NOT NULL
+
+    # Metadata (9)
+    imf_sc_id: SMALLINT
+    sw_plasma_sc_id: SMALLINT
+    imf_avg_points: INTEGER
+    plasma_avg_points: INTEGER
+    percent_interp: INTEGER
+    timeshift_sec: INTEGER
+    rms_timeshift: INTEGER
+    rms_phase_front_normal: REAL
+    time_between_obs_sec: INTEGER
+
+    # Magnetic field data (8)
+    b_magnitude_nt: REAL
+    bx_gse_nt: REAL
+    by_gse_nt: REAL
+    bz_gse_nt: REAL
+    by_gsm_nt: REAL
+    bz_gsm_nt: REAL
+    rms_sd_b_scalar_nt: REAL
+    rms_sd_b_vector_nt: REAL
+
+    # Plasma data (10)
+    flow_speed_km_s: REAL
+    vx_gse_km_s: REAL
+    vy_gse_km_s: REAL
+    vz_gse_km_s: REAL
+    proton_density_n_cc: REAL
+    temperature_k: REAL
+    flow_pressure_npa: REAL
+    electric_field_mv_m: REAL
+    plasma_beta: REAL
+    alfven_mach_number: REAL
+
+    # Satellite position (6)
+    sc_x_gse_re: REAL
+    sc_y_gse_re: REAL
+    sc_z_gse_re: REAL
+    bsn_x_gse_re: REAL
+    bsn_y_gse_re: REAL
+    bsn_z_gse_re: REAL
+
+    # Geomagnetic indices (9)
+    ae_index_nt: INTEGER
+    al_index_nt: INTEGER
+    au_index_nt: INTEGER
+    sym_d_nt: INTEGER
+    sym_h_nt: INTEGER
+    asy_d_nt: INTEGER
+    asy_h_nt: INTEGER
+    pc_n_index: REAL
+    magnetosonic_mach_number: REAL
+
+  # ============================================================================
+  # OMNI High Resolution (5-min) - 49 columns (1-min + proton flux)
+  # ============================================================================
+  omni_high_resolution_5min:
+    # Time information (5)
+    datetime: TIMESTAMP PRIMARY KEY
+    year: INTEGER NOT NULL
+    day: INTEGER NOT NULL
+    hour: INTEGER NOT NULL
+    minute: INTEGER NOT NULL
+
+    # Metadata (9)
+    imf_sc_id: SMALLINT
+    sw_plasma_sc_id: SMALLINT
+    imf_avg_points: INTEGER
+    plasma_avg_points: INTEGER
+    percent_interp: INTEGER
+    timeshift_sec: INTEGER
+    rms_timeshift: INTEGER
+    rms_phase_front_normal: REAL
+    time_between_obs_sec: INTEGER
+
+    # Magnetic field data (8)
+    b_magnitude_nt: REAL
+    bx_gse_nt: REAL
+    by_gse_nt: REAL
+    bz_gse_nt: REAL
+    by_gsm_nt: REAL
+    bz_gsm_nt: REAL
+    rms_sd_b_scalar_nt: REAL
+    rms_sd_b_vector_nt: REAL
+
+    # Plasma data (10)
+    flow_speed_km_s: REAL
+    vx_gse_km_s: REAL
+    vy_gse_km_s: REAL
+    vz_gse_km_s: REAL
+    proton_density_n_cc: REAL
+    temperature_k: REAL
+    flow_pressure_npa: REAL
+    electric_field_mv_m: REAL
+    plasma_beta: REAL
+    alfven_mach_number: REAL
+
+    # Satellite position (6)
+    sc_x_gse_re: REAL
+    sc_y_gse_re: REAL
+    sc_z_gse_re: REAL
+    bsn_x_gse_re: REAL
+    bsn_y_gse_re: REAL
+    bsn_z_gse_re: REAL
+
+    # Geomagnetic indices (9)
+    ae_index_nt: INTEGER
+    al_index_nt: INTEGER
+    au_index_nt: INTEGER
+    sym_d_nt: INTEGER
+    sym_h_nt: INTEGER
+    asy_d_nt: INTEGER
+    asy_h_nt: INTEGER
+    pc_n_index: REAL
+    magnetosonic_mach_number: REAL
+
+    # GOES Proton Flux (3) - 5-min data only
+    proton_flux_gt10mev: REAL
+    proton_flux_gt30mev: REAL
+    proton_flux_gt60mev: REAL
+
+download_config:
+  omni_low_resolution:
+    url_pattern: "https://spdf.gsfc.nasa.gov/pub/data/omni/low_res_omni/omni2_{year}.dat"
+    save_dir: /opt/archive/space_weather/omni/low_resolution
+
+  omni_high_resolution:
+    url_pattern: "https://spdf.gsfc.nasa.gov/pub/data/omni/high_res_omni/omni_min{year}.asc"
+    save_dir: /opt/archive/space_weather/omni/high_resolution
+
+  omni_high_resolution_5min:
+    url_pattern: "https://spdf.gsfc.nasa.gov/pub/data/omni/high_res_omni/omni_5min{year}.asc"
+    save_dir: /opt/archive/space_weather/omni/high_resolution_5min

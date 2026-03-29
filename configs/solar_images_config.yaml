@@ -1,0 +1,150 @@
+# solar_images_config.yaml
+# Database configuration for solar image data (LASCO, SDO, SECCHI)
+
+db_config:
+  host: ${DB_HOST:localhost}
+  port: 5432
+  database: solar_images
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+  log_queries: false
+
+schema_config:
+  # ============================================================================
+  # LASCO - SOHO Coronagraph
+  # ============================================================================
+  lasco:
+    camera: VARCHAR(4) NOT NULL
+    datetime: TIMESTAMP NOT NULL
+    file_path: VARCHAR(512) NOT NULL
+    exposure_time: REAL
+    filter: VARCHAR(20)
+    _primary_key: [camera, datetime]
+    _unique: [file_path]
+    _indexes:
+      - [datetime]
+
+  # ============================================================================
+  # SDO - Solar Dynamics Observatory (AIA/HMI)
+  # Normalized structure: telescope + channel
+  # ============================================================================
+  sdo:
+    telescope: VARCHAR(10) NOT NULL
+    channel: VARCHAR(20) NOT NULL
+    datetime: TIMESTAMP NOT NULL
+    file_path: VARCHAR(512) NOT NULL
+    quality: INTEGER
+    wavelength: INTEGER
+    exposure_time: REAL
+    _primary_key: [telescope, channel, datetime]
+    _unique: [file_path]
+    _indexes:
+      - [datetime]
+      - [telescope]
+      - [quality]
+
+  # ============================================================================
+  # SECCHI - STEREO Sun Earth Connection Coronal and Heliospheric Investigation
+  # Normalized structure: instrument + channel (for EUVI wavelengths)
+  # ============================================================================
+  secchi:
+    datatype: VARCHAR(10) NOT NULL
+    spacecraft: VARCHAR(10) NOT NULL
+    instrument: VARCHAR(10) NOT NULL
+    channel: VARCHAR(20)
+    datetime: TIMESTAMP NOT NULL
+    file_path: VARCHAR(512) NOT NULL
+    exposure_time: REAL
+    filter: VARCHAR(20)
+    wavelength: INTEGER
+    _primary_key: [datatype, spacecraft, instrument, channel, datetime]
+    _unique: [file_path]
+    _indexes:
+      - [datetime]
+      - [spacecraft]
+      - [instrument]
+
+# ============================================================================
+# Download configuration
+# ============================================================================
+download_config:
+  # LASCO download settings
+  lasco:
+    download_root: "/opt/archive/solar_images/lasco"
+    cameras: ["c2", "c3"]  # Available: c1, c2, c3, c4
+
+  # SDO download settings
+  sdo:
+    download_root: "/opt/archive/sdo"
+    # Subdirectories for file classification
+    dirs:
+      aia: "aia"
+      hmi: "hmi"
+      downloaded: "downloaded"
+      invalid_file: "invalid_file"
+      invalid_header: "invalid_header"
+      invalid_data: "invalid_data"
+
+  # SECCHI download settings
+  secchi:
+    download_root: "/opt/archive/solar_images/secchi"
+    datatypes: ["science", "beacon"]
+    spacecrafts: ["ahead", "behind"]
+    instruments: ["cor1", "cor2", "euvi", "hi_1", "hi_2"]
+
+# ============================================================================
+# JSOC configuration (for SDO downloads)
+# ============================================================================
+jsoc_config:
+  email: "eunsupark@kasi.re.kr"
+
+  # Telescope and channel mapping
+  telescopes:
+    aia:
+      series: "aia.lev1_euv_12s"
+      channels:
+        - "193"
+        - "211"
+        - "171"
+        - "304"
+        - "94"
+        - "131"
+        - "335"
+    hmi:
+      series_map:
+        m_45s: "hmi.m_45s"
+        m_720s: "hmi.m_720s"
+        ic_45s: "hmi.ic_45s"
+      channels:
+        - "m_45s"
+        - "m_720s"
+
+  # Default cadence
+  default_cadence: "1h"
+
+# ============================================================================
+# Channel metadata (for reference)
+# ============================================================================
+channel_metadata:
+  # SDO AIA channels (wavelength in Angstrom)
+  aia:
+    "94": {wavelength: 94, description: "Fe XVIII, flare plasma"}
+    "131": {wavelength: 131, description: "Fe VIII/XXI, flare plasma"}
+    "171": {wavelength: 171, description: "Fe IX, quiet corona"}
+    "193": {wavelength: 193, description: "Fe XII/XXIV, corona/flare"}
+    "211": {wavelength: 211, description: "Fe XIV, active region"}
+    "304": {wavelength: 304, description: "He II, chromosphere"}
+    "335": {wavelength: 335, description: "Fe XVI, active region"}
+
+  # SDO HMI channels
+  hmi:
+    "m_45s": {wavelength: null, description: "Magnetogram 45s cadence"}
+    "m_720s": {wavelength: null, description: "Magnetogram 720s cadence"}
+    "ic_45s": {wavelength: null, description: "Continuum intensity 45s"}
+
+  # SECCHI EUVI channels (wavelength in Angstrom)
+  euvi:
+    "171": {wavelength: 171, description: "Fe IX/X, quiet corona"}
+    "195": {wavelength: 195, description: "Fe XII, corona"}
+    "284": {wavelength: 284, description: "Fe XV, active region"}
+    "304": {wavelength: 304, description: "He II, chromosphere"}
