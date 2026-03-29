@@ -62,6 +62,9 @@ def main():
         args.highres = True
         args.highres_5min = True
 
+    if not args.lowres and not args.highres and not args.highres_5min:
+        parser.error('Specify --lowres, --highres, --highres-5min, or --all')
+
     config = load_config(args.config)
     db_config = config['db_config']
     download_config = config['download_config']
