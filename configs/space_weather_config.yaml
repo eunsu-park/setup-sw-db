@@ -213,6 +213,32 @@ schema_config:
     proton_flux_gt30mev: REAL
     proton_flux_gt60mev: REAL
 
+  # ============================================================================
+  # HPo Hp30 (30-min Geomagnetic Index)
+  # ============================================================================
+  hpo_hp30:
+    datetime: TIMESTAMP PRIMARY KEY
+    year: SMALLINT NOT NULL
+    month: SMALLINT NOT NULL
+    day: SMALLINT NOT NULL
+    hh_start: REAL NOT NULL
+    hp30: REAL
+    ap30: SMALLINT
+    _indexes: [[year]]
+
+  # ============================================================================
+  # HPo Hp60 (60-min Geomagnetic Index)
+  # ============================================================================
+  hpo_hp60:
+    datetime: TIMESTAMP PRIMARY KEY
+    year: SMALLINT NOT NULL
+    month: SMALLINT NOT NULL
+    day: SMALLINT NOT NULL
+    hh_start: REAL NOT NULL
+    hp60: REAL
+    ap60: SMALLINT
+    _indexes: [[year]]
+
 download_config:
   omni_low_resolution:
     url_pattern: "https://spdf.gsfc.nasa.gov/pub/data/omni/low_res_omni/omni2_{year}.dat"
@@ -225,3 +251,13 @@ download_config:
   omni_high_resolution_5min:
     url_pattern: "https://spdf.gsfc.nasa.gov/pub/data/omni/high_res_omni/omni_5min{year}.asc"
     save_dir: /opt/archive/space_weather/omni/high_resolution_5min
+
+  hpo_hp30:
+    url_complete: "https://kp.gfz.de/app/files/Hp30_ap30_complete_series.txt"
+    url_nowcast: "https://www-app3.gfz.de/kp_index/Hp30_ap30_nowcast.txt"
+    save_dir: /opt/archive/space_weather/hpo/hp30
+
+  hpo_hp60:
+    url_complete: "https://kp.gfz.de/app/files/Hp60_ap60_complete_series.txt"
+    url_nowcast: "https://www-app3.gfz.de/kp_index/Hp60_ap60_nowcast.txt"
+    save_dir: /opt/archive/space_weather/hpo/hp60
