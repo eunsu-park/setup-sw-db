@@ -214,6 +214,8 @@ HP30 = {
     ],
     'keep_columns': ['Year', 'Month', 'Day', 'hh_start', 'Hp30', 'ap30'],
     'fill_values': {'Hp30': -1.000, 'ap30': -1},
+    'hp_key': 'Hp30',
+    'ap_key': 'ap30',
 }
 
 HP60 = {
@@ -224,7 +226,60 @@ HP60 = {
     ],
     'keep_columns': ['Year', 'Month', 'Day', 'hh_start', 'Hp60', 'ap60'],
     'fill_values': {'Hp60': -1.000, 'ap60': -1},
+    'hp_key': 'Hp60',
+    'ap_key': 'ap60',
 }
+
+
+def parse_hpo_json(hp_data: dict, ap_data: dict, spec: dict) -> pd.DataFrame:
+    """Parse HPo JSON API responses into a DataFrame.
+
+    Merges Hp and ap JSON responses by datetime and derives year, month, day,
+    hh_start columns to match the existing DB schema.
+
+    Args:
+        hp_data: JSON response for Hp index (Hp30 or Hp60).
+        ap_data: JSON response for ap index (ap30 or ap60).
+        spec: Dict with keys 'fill_values', 'table'. Must also have
+            'hp_key' and 'ap_key' identifying the value field names.
+
+    Returns:
+        DataFrame with datetime column and selected data columns.
+    """
+    hp_key = spec['hp_key']
+    ap_key = spec['ap_key']
+
+    # Build Hp DataFrame
+    hp_df = pd.DataFrame({
+        'datetime': pd.to_datetime(hp_data['datetime']),
+        hp_key: hp_data[hp_key],
+    })
+
+    # Build ap DataFrame
+    ap_df = pd.DataFrame({
+        'datetime': pd.to_datetime(ap_data['datetime']),
+        ap_key: ap_data[ap_key],
+    })
+
+    # Merge on datetime
+    df = hp_df.merge(ap_df, on='datetime', how='outer')
+
+    # Derive year, month, day, hh_start from datetime
+    df['year'] = df['datetime'].dt.year
+    df['month'] = df['datetime'].dt.month
+    df['day'] = df['datetime'].dt.day
+    df['hh_start'] = df['datetime'].dt.hour + df['datetime'].dt.minute / 60.0
+
+    # Replace fill values with NaN
+    for col, fill_val in spec['fill_values'].items():
+        if col in df.columns:
+            df[col] = df[col].replace(fill_val, np.nan)
+
+    # Reorder columns to match DB schema
+    cols = ['datetime', 'year', 'month', 'day', 'hh_start', hp_key, ap_key]
+    df = df[cols]
+
+    return df
 
 
 def parse_hpo(text: str, spec: dict) -> pd.DataFrame:
