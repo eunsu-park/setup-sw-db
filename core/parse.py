@@ -184,6 +184,90 @@ HIGHRES_5MIN = {
 
 
 # =============================================================================
+# HPo (Hp30/Hp60) Data Specifications
+# =============================================================================
+def _dt_hpo(year, month, day, hh_start):
+    """Build datetime from HPo record fields.
+
+    Args:
+        year: Year.
+        month: Month.
+        day: Day.
+        hh_start: Starting hour as float (e.g., 0.0, 0.5, 1.0).
+
+    Returns:
+        datetime or pd.NaT on failure.
+    """
+    try:
+        hours = int(hh_start)
+        minutes = int(round((hh_start - hours) * 60))
+        return datetime(int(year), int(month), int(day), hours, minutes)
+    except (ValueError, TypeError):
+        return pd.NaT
+
+
+HP30 = {
+    'table': 'hpo_hp30',
+    'raw_columns': [
+        'Year', 'Month', 'Day', 'hh_start', 'hh_mid',
+        'days_start', 'days_mid', 'Hp30', 'ap30', 'D'
+    ],
+    'keep_columns': ['Year', 'Month', 'Day', 'hh_start', 'Hp30', 'ap30'],
+    'fill_values': {'Hp30': -1.000, 'ap30': -1},
+}
+
+HP60 = {
+    'table': 'hpo_hp60',
+    'raw_columns': [
+        'Year', 'Month', 'Day', 'hh_start', 'hh_mid',
+        'days_start', 'days_mid', 'Hp60', 'ap60', 'D'
+    ],
+    'keep_columns': ['Year', 'Month', 'Day', 'hh_start', 'Hp60', 'ap60'],
+    'fill_values': {'Hp60': -1.000, 'ap60': -1},
+}
+
+
+def parse_hpo(text: str, spec: dict) -> pd.DataFrame:
+    """Parse HPo (Hp30/Hp60) blank-separated text data into a DataFrame.
+
+    Args:
+        text: Raw text data with # comment headers.
+        spec: Dict with keys 'raw_columns', 'keep_columns', 'fill_values', 'table'.
+
+    Returns:
+        DataFrame with datetime column and selected data columns.
+    """
+    from io import StringIO
+
+    df = pd.read_csv(
+        StringIO(text),
+        comment='#',
+        sep=r'\s+',
+        header=None,
+        names=spec['raw_columns'],
+    )
+
+    # Keep only needed columns
+    df = df[spec['keep_columns']].copy()
+
+    # Replace fill values with NaN
+    for col, fill_val in spec['fill_values'].items():
+        df[col] = df[col].replace(fill_val, np.nan)
+
+    # Build datetime from Year, Month, Day, hh_start
+    df['datetime'] = df.apply(
+        lambda row: _dt_hpo(row['Year'], row['Month'], row['Day'], row['hh_start']),
+        axis=1,
+    )
+
+    # Reorder: datetime first
+    cols = ['datetime'] + [c for c in df.columns if c != 'datetime']
+    df = df[cols]
+
+    return df
+
+
+# =============================================================================
 # FITS Parsing
 # =============================================================================
 def _parse_tai_datetime(date_str: str) -> datetime | None:

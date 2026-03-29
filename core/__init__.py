@@ -8,7 +8,7 @@ from .database import (
     initialize_database,
 )
 from .download import download, download_file, list_remote_files, download_files_parallel
-from .parse import parse, LOWRES, HIGHRES, HIGHRES_5MIN, parse_fits_datetime
+from .parse import parse, parse_hpo, LOWRES, HIGHRES, HIGHRES_5MIN, HP30, HP60, parse_fits_datetime
 from .cli import (
     add_date_arguments,
     add_download_arguments,
