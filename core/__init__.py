@@ -7,8 +7,8 @@ from .database import (
     delete_orphans,
     initialize_database,
 )
-from .download import download, download_file, list_remote_files, download_files_parallel
-from .parse import parse, parse_hpo, LOWRES, HIGHRES, HIGHRES_5MIN, HP30, HP60, parse_fits_datetime
+from .download import download, download_json, download_file, list_remote_files, download_files_parallel
+from .parse import parse, parse_hpo, parse_hpo_json, LOWRES, HIGHRES, HIGHRES_5MIN, HP30, HP60, parse_fits_datetime
 from .cli import (
     add_date_arguments,
     add_download_arguments,
