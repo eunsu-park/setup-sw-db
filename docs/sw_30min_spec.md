@@ -110,10 +110,36 @@ Rows: (5 + 3) * 48 = 384
 
 ## CLI Usage
 
-```bash
-# Build aggregation table (year-by-year)
-python scripts/build_sw_30min.py build --start-year 2010 --end-year 2025
+### Build Aggregation Table
 
-# Extract event data to CSV
+```bash
+python scripts/build_sw_30min.py build --start-year 2010 --end-year 2025
+```
+
+### Extract Single Event
+
+```bash
 python scripts/build_sw_30min.py extract -t "2021-01-10 00:00:00" -b 5 -a 3 -o output.csv
 ```
+
+### Batch Extract Events
+
+Extract event windows over a time range, saving each as an individual CSV.
+Events with any NaN values are skipped.
+
+```bash
+python scripts/extract_sw_events.py \
+  -s "2011-01-01 00:00:00" -e "2011-12-31 23:30:00" \
+  -c 30 -b 5 -a 3 -o /path/to/output/
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `-s` / `--start` | required | Start time (YYYY-MM-DD HH:MM:SS) |
+| `-e` / `--end` | required | End time (YYYY-MM-DD HH:MM:SS) |
+| `-c` / `--cadence` | 30 | T iteration interval in minutes |
+| `-b` / `--before` | 5 | Days before T |
+| `-a` / `--after` | 3 | Days after T |
+| `-o` / `--output-dir` | required | Output directory |
+
+Output files are named `YYYYMMDDHHMMSS.csv` based on T (e.g., `20110101000000.csv`).

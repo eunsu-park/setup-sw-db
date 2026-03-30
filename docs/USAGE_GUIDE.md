@@ -321,6 +321,51 @@ python scripts/download_hpo.py --all --nowcast
 
 ---
 
+### SW 30-min Aggregation & Event Extraction
+
+#### `build_sw_30min.py`
+
+Build the `sw_30min` aggregation table from OMNI 1-min and HPo 30-min data, or extract single event data.
+
+```bash
+python scripts/build_sw_30min.py build --start-year 2010 --end-year 2025
+python scripts/build_sw_30min.py extract -t "2021-01-10 00:00:00" -b 5 -a 3 -o output.csv
+```
+
+| Subcommand | Argument | Default | Description |
+|------------|----------|---------|-------------|
+| `build` | `--start-year` | 2010 | Start year |
+| | `--end-year` | 2025 | End year |
+| `extract` | `-t` / `--time` | required | Reference time T (YYYY-MM-DD HH:MM:SS) |
+| | `-b` / `--before` | 5 | Days before T |
+| | `-a` / `--after` | 3 | Days after T |
+| | `-o` / `--output` | - | Output CSV path (default: stdout) |
+
+> See [sw_30min_spec.md](sw_30min_spec.md) for data specification.
+
+#### `extract_sw_events.py`
+
+Batch extract event windows over a time range. Each T produces an individual CSV file. Events with any NaN values are skipped.
+
+```bash
+python scripts/extract_sw_events.py \
+  -s "2011-01-01 00:00:00" -e "2011-12-31 23:30:00" \
+  -c 30 -b 5 -a 3 -o /path/to/output/
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `-s` / `--start` | required | Start time (YYYY-MM-DD HH:MM:SS) |
+| `-e` / `--end` | required | End time (YYYY-MM-DD HH:MM:SS) |
+| `-c` / `--cadence` | 30 | T iteration interval in minutes |
+| `-b` / `--before` | 5 | Days before T |
+| `-a` / `--after` | 3 | Days after T |
+| `-o` / `--output-dir` | required | Output directory |
+
+Output filenames: `YYYYMMDDHHMMSS.csv` (e.g., `20110101000000.csv`).
+
+---
+
 ## Typical Workflows
 
 ### Initial Setup & Full Download
@@ -390,6 +435,7 @@ python scripts/register_secchi.py --clean-orphans
 | omni_high_resolution_5min | datetime | 5-minute | 49 |
 | hpo_hp30 | datetime | 30-minute | 7 |
 | hpo_hp60 | datetime | 60-minute | 7 |
+| sw_30min | datetime | 30-minute | 24 |
 
 ---
 
