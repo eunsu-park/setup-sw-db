@@ -112,8 +112,8 @@ Rows: (5 + 3) * 48 = 384
 
 ```bash
 # Build aggregation table (year-by-year)
-python scripts/build_sw_30min.py --build --start-year 2010 --end-year 2025
+python scripts/build_sw_30min.py build --start-year 2010 --end-year 2025
 
 # Extract event data to CSV
-python scripts/build_sw_30min.py --extract -t "2021-01-10 00:00:00" -b 5 -a 3 -o output.csv
+python scripts/build_sw_30min.py extract -t "2021-01-10 00:00:00" -b 5 -a 3 -o output.csv
 ```
