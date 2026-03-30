@@ -239,6 +239,35 @@ schema_config:
     ap60: SMALLINT
     _indexes: [[year]]
 
+  # ============================================================================
+  # SW 30-min Aggregation (OMNI + HPo combined)
+  # ============================================================================
+  sw_30min:
+    datetime: TIMESTAMP PRIMARY KEY
+    v_avg: REAL
+    v_min: REAL
+    v_max: REAL
+    np_avg: REAL
+    np_min: REAL
+    np_max: REAL
+    t_avg: REAL
+    t_min: REAL
+    t_max: REAL
+    bx_avg: REAL
+    bx_min: REAL
+    bx_max: REAL
+    by_avg: REAL
+    by_min: REAL
+    by_max: REAL
+    bz_avg: REAL
+    bz_min: REAL
+    bz_max: REAL
+    bt_avg: REAL
+    bt_min: REAL
+    bt_max: REAL
+    ap30: SMALLINT
+    hp30: REAL
+
 download_config:
   omni_low_resolution:
     url_pattern: "https://spdf.gsfc.nasa.gov/pub/data/omni/low_res_omni/omni2_{year}.dat"
