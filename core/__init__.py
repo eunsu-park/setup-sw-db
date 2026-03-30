@@ -42,6 +42,7 @@ from .secchi import (
     extract_secchi_metadata,
     get_secchi_record,
 )
+from .aggregate import aggregate_sw_30min, extract_event_data
 from .query import (
     get_sdo_best_match,
     get_sdo_best_matches,
