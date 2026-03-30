@@ -68,11 +68,13 @@ def aggregate_sw_30min(start_date: datetime, end_date: datetime,
     omni_agg = omni_df.resample('30min').agg(agg_dict)
 
     # Flatten multi-level columns: (source_col, agg) -> output_name_agg
+    # pandas uses 'mean' but DB schema uses 'avg'
+    AGG_RENAME = {'mean': 'avg', 'min': 'min', 'max': 'max'}
     reverse_map = {v: k for k, v in OMNI_COLUMN_MAP.items()}
     flat_columns = []
     for source_col, agg_type in omni_agg.columns:
         var_name = reverse_map[source_col]
-        flat_columns.append(f'{var_name}_{agg_type}')
+        flat_columns.append(f'{var_name}_{AGG_RENAME[agg_type]}')
     omni_agg.columns = flat_columns
 
     # Reindex to ensure all 30-min timestamps exist
