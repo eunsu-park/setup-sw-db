@@ -1,0 +1,8 @@
+pandas
+numpy
+astropy
+drms
+requests
+urllib3
+pyyaml
+egghouse
