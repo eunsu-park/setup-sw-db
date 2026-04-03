@@ -71,12 +71,22 @@ def main():
         print(f"Params: {params}")
     print()
 
-    # Execute query
+    # Quick check: verify table exists and has data
     with PostgresManager(**db_config) as db:
+        check = db.execute(
+            "SELECT COUNT(*) as cnt FROM sw_30min", fetch=True)
+        total = check[0]['cnt'] if check else 0
+        print(f"Table sw_30min: {total:,} total rows")
+
+        if total == 0:
+            print("No data found in sw_30min table.")
+            return
+
+        # Execute main query
         rows = db.execute(sql, tuple(params) if params else None, fetch=True)
 
     if not rows:
-        print("No data found.")
+        print("No data found for the specified date range.")
         return
 
     df = pd.DataFrame(rows, columns=SW_30MIN_COLUMNS)
