@@ -6,6 +6,7 @@ small (~17MB for 10 years) and can be loaded entirely into memory during
 model training.
 """
 import argparse
+from datetime import datetime
 import os
 from pathlib import Path
 import sys
@@ -55,10 +56,11 @@ def main():
 
     if args.start:
         conditions.append('datetime >= %s')
-        params.append(args.start)
+        params.append(datetime.strptime(args.start, '%Y-%m-%d'))
     if args.end:
         conditions.append('datetime <= %s')
-        params.append(f'{args.end} 23:59:59')
+        params.append(datetime.strptime(args.end, '%Y-%m-%d').replace(
+            hour=23, minute=59, second=59))
 
     where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = f"SELECT {cols_str} FROM sw_30min{where_clause} ORDER BY datetime"
