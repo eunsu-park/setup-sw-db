@@ -272,7 +272,7 @@ schema_config:
     bz_nt: REAL
     bt_nt: REAL
     coord_frame: VARCHAR(8)
-    mag_flag: SMALLINT
+    mag_flag: INTEGER
     _primary_key: [satellite, datetime]
     _indexes: [[datetime], [satellite]]
 
