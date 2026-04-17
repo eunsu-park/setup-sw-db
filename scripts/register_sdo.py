@@ -66,7 +66,7 @@ def _validate_single(file_path_str: str) -> tuple[str, dict | str]:
     return (file_path_str, result)
 
 
-def _validate_batch(files: list[Path], parallel: int) -> list[tuple[str, dict | str]]:
+def _validate_batch(files: list[Path], parallel: int) -> list:
     """Validate a batch of FITS files.
 
     Uses ProcessPoolExecutor when parallel > 1, otherwise validates sequentially.
@@ -120,22 +120,23 @@ def _process_batch(validation_results: list[tuple[str, dict | str]],
     for file_path_str, result in validation_results:
         file_path = Path(file_path_str)
 
-        if isinstance(result, str):
-            counts[result] = counts.get(result, 0) + 1
+        if not result.success:
+            counts[result.error] = counts.get(result.error, 0) + 1
 
-            if move and result in dir_config:
-                target_dir = root / dir_config[result]
+            if move and result.error in dir_config:
+                target_dir = root / dir_config[result.error]
                 target_path = target_dir / file_path.name
                 if target_path != file_path:
                     invalid_moves.append((file_path, target_path))
 
             if verbose:
-                print(f"    {result}: {file_path.name}")
+                print(f"    {result.error}: {file_path.name}")
             continue
 
-        telescope = result.get('telescope')
-        channel = result.get('channel')
-        dt = tai_to_utc(result['datetime'], telescope)
+        meta = result.metadata
+        telescope = meta.get('telescope')
+        channel = meta.get('channel')
+        dt = tai_to_utc(meta['datetime'], telescope)
 
         if move:
             target_dir = get_target_path(download_root, telescope, dt)
@@ -158,8 +159,8 @@ def _process_batch(validation_results: list[tuple[str, dict | str]],
             'channel': channel,
             'datetime': dt,
             'file_path': str(target_path),
-            'quality': result.get('quality'),
-            'wavelength': result.get('wavelength'),
+            'quality': meta.get('quality'),
+            'wavelength': meta.get('wavelength'),
             'exposure_time': None,
         })
 
