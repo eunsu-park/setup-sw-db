@@ -43,3 +43,4 @@ CLAUDE.md
 tmp.py
 *.out
 *.log
+logs/
