@@ -354,7 +354,7 @@ download_config:
   # Directory listing is fetched then .nc files filtered by date range.
   goes_xrs:
     url_pattern_r: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/xrsf-l2-avg1m/{YYYY}/{MM}/"
-    url_pattern_legacy: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/xrsf-l2-avg1m/{YYYY}/{MM}/"
+    url_pattern_legacy: "https://www.ncei.noaa.gov/data/goes-space-environment-monitor/access/science/xrs/goes{NN}/xrsf-l2-avg1m_science/{YYYY}/{MM}/"
     file_extension: ".nc"
     save_dir: /opt/nas/archive/space_weather/goes/xrs
 
