@@ -240,6 +240,62 @@ schema_config:
     _indexes: [[year]]
 
   # ============================================================================
+  # GOES XRS (X-Ray Sensor) - 1-min
+  # Unified across legacy (GOES-13/14/15) and GOES-R (16+).
+  # xrs_a/b are the primary long/short bands (filled for all satellites).
+  # xrs_a1/a2/b1/b2 are GOES-R redundant channels (NULL for legacy).
+  # ============================================================================
+  goes_xrs:
+    satellite: SMALLINT NOT NULL
+    datetime: TIMESTAMP NOT NULL
+    xrs_a_flux_w_m2: REAL
+    xrs_b_flux_w_m2: REAL
+    xrs_a1_flux_w_m2: REAL
+    xrs_a2_flux_w_m2: REAL
+    xrs_b1_flux_w_m2: REAL
+    xrs_b2_flux_w_m2: REAL
+    xrs_a_flag: SMALLINT
+    xrs_b_flag: SMALLINT
+    is_goes_r: BOOLEAN NOT NULL
+    _primary_key: [satellite, datetime]
+    _indexes: [[datetime], [satellite]]
+
+  # ============================================================================
+  # GOES MAG (magnetometer at GEO) - 1-min
+  # Store native coordinate frame tag; no rotation at ingest.
+  # ============================================================================
+  goes_mag:
+    satellite: SMALLINT NOT NULL
+    datetime: TIMESTAMP NOT NULL
+    bx_nt: REAL
+    by_nt: REAL
+    bz_nt: REAL
+    bt_nt: REAL
+    coord_frame: VARCHAR(8)
+    mag_flag: SMALLINT
+    _primary_key: [satellite, datetime]
+    _indexes: [[datetime], [satellite]]
+
+  # ============================================================================
+  # GOES proton integral flux - 1-min
+  # Native cadence: 1-min for GOES-R SGPS, 5-min for legacy EPS/EPEAD.
+  # Legacy rows may only populate gt10/gt30/gt60/gt100 columns.
+  # ============================================================================
+  goes_proton:
+    satellite: SMALLINT NOT NULL
+    datetime: TIMESTAMP NOT NULL
+    proton_flux_gt1mev: REAL
+    proton_flux_gt5mev: REAL
+    proton_flux_gt10mev: REAL
+    proton_flux_gt30mev: REAL
+    proton_flux_gt50mev: REAL
+    proton_flux_gt60mev: REAL
+    proton_flux_gt100mev: REAL
+    proton_flag: SMALLINT
+    _primary_key: [satellite, datetime]
+    _indexes: [[datetime], [satellite]]
+
+  # ============================================================================
   # SW 30-min Aggregation (OMNI + HPo combined)
   # ============================================================================
   sw_30min:
@@ -292,3 +348,24 @@ download_config:
     indexes: [Hp60, ap60]
     url_nowcast: "https://www-app3.gfz.de/kp_index/Hp60_ap60_nowcast.txt"
     save_dir: /opt/nas/archive/space_weather/hpo/hp60
+
+  # GOES netCDF downloads from NOAA NCEI
+  # URL placeholders: {NN} = satellite (e.g. 16), {YYYY} = year, {MM} = 2-digit month.
+  # Directory listing is fetched then .nc files filtered by date range.
+  goes_xrs:
+    url_pattern_r: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/xrsf-l2-flx1s/{YYYY}/{MM}/"
+    url_pattern_legacy: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/xrsf-l2-avg1m/{YYYY}/{MM}/"
+    file_extension: ".nc"
+    save_dir: /opt/nas/archive/space_weather/goes/xrs
+
+  goes_mag:
+    url_pattern_r: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/magn-l2-avg1m/{YYYY}/{MM}/"
+    url_pattern_legacy: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/magn-l2-avg1m/{YYYY}/{MM}/"
+    file_extension: ".nc"
+    save_dir: /opt/nas/archive/space_weather/goes/mag
+
+  goes_proton:
+    url_pattern_r: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/sgps-l2-avg1m/{YYYY}/{MM}/"
+    url_pattern_legacy: "https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes{NN}/l2/data/epead-science-proton-fluxes-l2-avg1m/{YYYY}/{MM}/"
+    file_extension: ".nc"
+    save_dir: /opt/nas/archive/space_weather/goes/proton
