@@ -96,18 +96,19 @@ def process_downloaded_files(download_dir: Path, telescope: str,
         # Validate file (don't filter by quality - store all valid files)
         result = validate_fits(str(file_path), check_quality=False)
 
-        if isinstance(result, str):
+        if not result.success:
             # Error case: move to appropriate directory
-            if result in dir_config:
-                target_dir = root / dir_config[result]
+            if result.error in dir_config:
+                target_dir = root / dir_config[result.error]
                 target_dir.mkdir(parents=True, exist_ok=True)
                 target_path = target_dir / file_path.name
                 shutil.move(str(file_path), str(target_path))
-            counts[result] = counts.get(result, 0) + 1
+            counts[result.error] = counts.get(result.error, 0) + 1
             continue
 
         # Valid file with metadata
-        dt = tai_to_utc(result['datetime'], telescope)
+        meta = result.metadata
+        dt = tai_to_utc(meta['datetime'], telescope)
         target_dir = get_target_path(download_root, telescope, dt)
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / file_path.name
@@ -115,12 +116,12 @@ def process_downloaded_files(download_dir: Path, telescope: str,
         shutil.move(str(file_path), str(target_path))
 
         records.append({
-            'telescope': result.get('telescope', telescope),
-            'channel': result.get('channel'),
+            'telescope': meta.get('telescope', telescope),
+            'channel': meta.get('channel'),
             'datetime': dt,
             'file_path': str(target_path),
-            'quality': result.get('quality'),
-            'wavelength': result.get('wavelength'),
+            'quality': meta.get('quality'),
+            'wavelength': meta.get('wavelength'),
             'exposure_time': None,
         })
 
