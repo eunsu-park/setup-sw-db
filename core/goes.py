@@ -503,13 +503,22 @@ def parse_goes_proton_netcdf(path: str, satellite: int) -> pd.DataFrame:
             upper_arr = np.asarray(upper_var.values, dtype=np.float64)
 
             # Collapse sensor axis: flux (time, sensor, channel) → (time, ch);
-            # energies (sensor, channel) → (channel,).
-            if diff_arr.ndim == 3:
-                diff_arr = np.nanmean(diff_arr, axis=1)
-            if lower_arr.ndim == 2:
-                lower_arr = np.nanmean(lower_arr, axis=0)
-            if upper_arr.ndim == 2:
-                upper_arr = np.nanmean(upper_arr, axis=0)
+            # energies (sensor, channel) → (channel,). Suppress the "Mean of
+            # empty slice" RuntimeWarning for timesteps where every sensor is
+            # NaN — the result is NaN which is the desired behavior.
+            import warnings as _warnings
+            with _warnings.catch_warnings():
+                _warnings.filterwarnings(
+                    "ignore",
+                    category=RuntimeWarning,
+                    message="Mean of empty slice",
+                )
+                if diff_arr.ndim == 3:
+                    diff_arr = np.nanmean(diff_arr, axis=1)
+                if lower_arr.ndim == 2:
+                    lower_arr = np.nanmean(lower_arr, axis=0)
+                if upper_arr.ndim == 2:
+                    upper_arr = np.nanmean(upper_arr, axis=0)
 
             if (diff_arr.ndim == 2 and diff_arr.shape[0] == n
                     and lower_arr.ndim == 1 and upper_arr.ndim == 1
