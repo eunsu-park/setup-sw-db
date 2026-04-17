@@ -5,7 +5,13 @@ from typing import Any
 
 import drms
 
-# TAI-UTC offset in seconds (as of 2017, leap seconds)
+from .result import ValidationResult
+
+# TAI-UTC offset in seconds.
+# As of 2017-01-01, there are 37 leap seconds accumulated since TAI epoch.
+# This value must be updated if a new leap second is announced by IERS.
+# Last verified: 2025-01-01 (no new leap seconds since 2017).
+# Reference: https://hpiers.obspm.fr/eop-pc/index.php?index=TAI-UTC_tab
 TAI_UTC_OFFSET = 37
 
 
@@ -255,33 +261,28 @@ def query_jsoc_time_range(instrument: str, target_time: datetime.datetime,
 
 
 def validate_fits(file_path: str, check_quality: bool = True,
-                  check_data: bool = True) -> dict[str, Any] | str:
+                  check_data: bool = True) -> ValidationResult:
     """Validate SDO FITS file and extract metadata.
 
     Args:
         file_path: Path to FITS file.
-        check_quality: If True, return 'non_zero_quality' for quality != 0.
+        check_quality: If True, fail with 'non_zero_quality' for quality != 0.
                        If False, include all files regardless of quality.
         check_data: If True, decompress and validate pixel data.
                     If False, only validate headers (much faster).
 
     Returns:
-        On success: dict with keys 'datetime', 'quality', 'telescope',
-            'channel', 'wavelength', 'content', 't_rec_raw'.
-        On failure: one of the following error strings, used by callers
-            to route files into corresponding directories:
-            - 'invalid_file': FITS file cannot be opened.
-            - 'invalid_header': Required header keywords missing.
-            - 'invalid_data': Pixel data validation failed.
-            - 'non_zero_quality': QUALITY flag is non-zero (only when
-              check_quality=True).
+        ValidationResult with success=True and metadata dict on success,
+        or success=False and error string on failure.
+        Error categories: 'invalid_file', 'invalid_header', 'invalid_data',
+        'non_zero_quality'.
     """
     from astropy.io import fits
 
     try:
         hdul = fits.open(file_path)
     except Exception:
-        return 'invalid_file'
+        return ValidationResult.fail('invalid_file', file_path)
 
     try:
         # SDO FITS: compressed data in HDU 1 (CompImageHDU)
@@ -298,12 +299,12 @@ def validate_fits(file_path: str, check_quality: bool = True,
         telescop = header.get('TELESCOP') or header.get('telescop')
 
         if t_rec is None or quality is None or telescop is None:
-            return 'invalid_header'
+            return ValidationResult.fail('invalid_header', file_path)
 
         # Parse datetime from T_REC
         dt = _parse_t_rec(t_rec)
         if dt is None:
-            return 'invalid_header'
+            return ValidationResult.fail('invalid_header', file_path)
 
         # Check data validity (expensive: decompresses Rice-compressed data)
         if check_data:
@@ -311,15 +312,15 @@ def validate_fits(file_path: str, check_quality: bool = True,
             try:
                 data = data_hdu.data
                 if data is None or data.size == 0:
-                    return 'invalid_data'
+                    return ValidationResult.fail('invalid_data', file_path)
                 if np.all(np.isnan(data)):
-                    return 'invalid_data'
+                    return ValidationResult.fail('invalid_data', file_path)
             except Exception:
-                return 'invalid_data'
+                return ValidationResult.fail('invalid_data', file_path)
 
         # Check quality (only if check_quality is True)
         if check_quality and quality != 0:
-            return 'non_zero_quality'
+            return ValidationResult.fail('non_zero_quality', file_path)
 
         # Get wavelength or content
         wavelength = header.get('WAVELNTH') or header.get('wavelnth')
@@ -343,7 +344,7 @@ def validate_fits(file_path: str, check_quality: bool = True,
             else:
                 channel = 'm_45s'
 
-        return {
+        return ValidationResult.ok({
             'datetime': dt,
             'quality': quality,
             'telescope': telescope,
@@ -351,10 +352,10 @@ def validate_fits(file_path: str, check_quality: bool = True,
             'wavelength': int(wavelength) if wavelength else None,
             'content': content,
             't_rec_raw': t_rec,
-        }
+        }, file_path)
 
     except Exception:
-        return 'invalid_header'
+        return ValidationResult.fail('invalid_header', file_path)
     finally:
         hdul.close()
 
