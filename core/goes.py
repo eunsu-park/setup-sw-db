@@ -373,7 +373,7 @@ def parse_goes_mag_netcdf(path: str, satellite: int) -> pd.DataFrame:
             bt = np.sqrt(bx_arr ** 2 + by_arr ** 2 + bz_arr ** 2)
 
         mag_flag = _integer_flag(_first_var(ds, [
-            "b_flags", "b_flag", "mag_flags", "mag_flag", "DQF",
+            "b_flags", "b_flag", "mag_flags", "mag_flag", "DQF", "b_quality",
         ]))
 
         df = pd.DataFrame({
@@ -416,12 +416,43 @@ def _resolve_proton_column(ds, threshold_mev: int) -> np.ndarray | None:
     return _numeric_column(_first_var(ds, candidates))
 
 
+def _match_sgps_channel(energy_arr: np.ndarray, threshold_mev: int,
+                        rel_tol: float = 0.10) -> int | None:
+    """Find the SGPS channel whose effective energy best matches a threshold.
+
+    Returns None if the nearest channel is outside rel_tol relative tolerance,
+    which prevents e.g. >60 MeV from being silently filled with the 49.9 MeV
+    channel.
+
+    Args:
+        energy_arr: 1-D array of channel effective energies (MeV).
+        threshold_mev: Target integral-flux threshold.
+        rel_tol: Relative tolerance (fraction of threshold).
+
+    Returns:
+        Channel index or None if no acceptable match.
+    """
+    if energy_arr.size == 0:
+        return None
+    diffs = np.abs(energy_arr - threshold_mev)
+    idx = int(np.argmin(diffs))
+    nearest = float(energy_arr[idx])
+    lo = threshold_mev * (1.0 - rel_tol)
+    hi = threshold_mev * (1.0 + rel_tol)
+    return idx if lo <= nearest <= hi else None
+
+
 def parse_goes_proton_netcdf(path: str, satellite: int) -> pd.DataFrame:
     """Parse a GOES proton integral-flux netCDF file.
 
-    Fills only the threshold columns actually present in the file; the rest
-    remain NaN (→ NULL). Legacy EPEAD files typically provide a subset of
-    the columns that GOES-R SGPS exposes.
+    Handles two layouts:
+      - GOES-R SGPS: AvgIntProtonFlux 2-D (time, channel) with
+        IntegralProtonEffectiveEnergy giving per-channel energies.
+      - Legacy EPS/EPEAD: per-threshold named scalar columns.
+
+    For SGPS, channels are matched to our schema thresholds by nearest
+    effective energy within 10% relative tolerance; unmatched thresholds
+    (e.g. >60 MeV has no corresponding SGPS channel) are left NaN → NULL.
 
     Args:
         path: Path to the netCDF file.
@@ -450,13 +481,45 @@ def parse_goes_proton_netcdf(path: str, satellite: int) -> pd.DataFrame:
             "satellite": np.full(n, satellite, dtype=np.int16),
             "datetime": times.values,
         }
-        for threshold in _PROTON_THRESHOLDS_MEV:
-            columns[f"proton_flux_gt{threshold}mev"] = _fill(
-                _resolve_proton_column(ds, threshold)
-            )
+
+        # Try SGPS (GOES-R) multi-channel integral flux first.
+        flux_var = _first_var(ds, ["AvgIntProtonFlux"])
+        energy_var = _first_var(ds, ["IntegralProtonEffectiveEnergy"])
+        resolved = False
+
+        if flux_var is not None and energy_var is not None:
+            flux_arr = np.asarray(flux_var.values, dtype=np.float64)
+            energy_arr = np.asarray(energy_var.values, dtype=np.float64)
+
+            # Collapse sensor dimension if present: (time, sensor, channel) →
+            # average across sensors; (sensor, channel) → average across sensors.
+            if flux_arr.ndim == 3:
+                flux_arr = np.nanmean(flux_arr, axis=1)
+            if energy_arr.ndim == 2:
+                energy_arr = np.nanmean(energy_arr, axis=0)
+
+            if (flux_arr.ndim == 2 and flux_arr.shape[0] == n
+                    and energy_arr.ndim == 1
+                    and flux_arr.shape[1] == energy_arr.shape[0]):
+                resolved = True
+                for threshold in _PROTON_THRESHOLDS_MEV:
+                    idx = _match_sgps_channel(energy_arr, threshold)
+                    col_name = f"proton_flux_gt{threshold}mev"
+                    if idx is None:
+                        columns[col_name] = np.full(n, np.nan)
+                    else:
+                        columns[col_name] = _fill(flux_arr[:, idx])
+
+        # Legacy fallback: look for per-threshold named scalar variables.
+        if not resolved:
+            for threshold in _PROTON_THRESHOLDS_MEV:
+                columns[f"proton_flux_gt{threshold}mev"] = _fill(
+                    _resolve_proton_column(ds, threshold)
+                )
 
         proton_flag = _integer_flag(_first_var(ds, [
             "proton_flags", "proton_flag", "p_flags", "DQF",
+            "IntDQFerrSum",
         ]))
         columns["proton_flag"] = _fill(proton_flag)
 
