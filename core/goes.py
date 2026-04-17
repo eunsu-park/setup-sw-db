@@ -161,6 +161,41 @@ def _to_utc_naive(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, utc=True).dt.tz_localize(None)
 
 
+def _resolve_time_values(ds, aliases: list[str]) -> np.ndarray | None:
+    """Return a numpy array of numpy.datetime64 values from the first matching
+    time variable in the dataset.
+
+    Handles two cases:
+      - xarray has auto-decoded the variable to datetime64 (usual when named
+        ``time`` with proper CF attributes).
+      - Variable is raw numeric with a ``units`` attribute like
+        "seconds since ...", which CF-auto-decoding skipped because the
+        variable name is non-standard (e.g. GOES-R SGPS v1
+        ``L2_SciData_TimeStamp``). In that case decode manually via cftime.
+
+    Returns:
+        1-D array of numpy.datetime64[ns], or None if no usable time variable
+        was found.
+    """
+    var = _first_var(ds, aliases)
+    if var is None:
+        return None
+    values = var.values
+    if np.issubdtype(values.dtype, np.datetime64):
+        return values
+    units = var.attrs.get("units")
+    if not units or "since" not in units:
+        return None
+    try:
+        from cftime import num2pydate
+        calendar = var.attrs.get("calendar", "standard")
+        pydates = num2pydate(values, units, calendar=calendar)
+        return pd.to_datetime(pydates).values
+    except Exception as e:
+        print(f"  Time decode failed ({units}): {e}")
+        return None
+
+
 def _open_dataset(path: str):
     """Open a netCDF file with xarray, decoding times."""
     import xarray as xr
@@ -477,10 +512,12 @@ def parse_goes_proton_netcdf(path: str, satellite: int) -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        time_var = _first_var(ds, ["time"])
-        if time_var is None:
+        time_values = _resolve_time_values(
+            ds, ["time", "L2_SciData_TimeStamp"],
+        )
+        if time_values is None:
             return pd.DataFrame()
-        times = _to_utc_naive(pd.Series(time_var.values))
+        times = _to_utc_naive(pd.Series(time_values))
         n = len(times)
 
         def _fill(arr):
