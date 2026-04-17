@@ -9,7 +9,7 @@ Database schema reference for all tables managed by this project.
 | Database | Purpose | Tables |
 |----------|---------|--------|
 | `solar_images` | Solar observation FITS image metadata | `sdo`, `lasco`, `secchi` |
-| `space_weather` | Space weather time series indices | `omni_low_resolution`, `omni_high_resolution`, `omni_high_resolution_5min`, `hpo_hp30`, `hpo_hp60` |
+| `space_weather` | Space weather time series indices | `omni_low_resolution`, `omni_high_resolution`, `omni_high_resolution_5min`, `hpo_hp30`, `hpo_hp60`, `goes_xrs`, `goes_mag`, `goes_proton`, `sw_30min` |
 
 ---
 
@@ -153,6 +153,91 @@ Same as Hp30 but at 60-minute resolution.
 - **Missing values**: Source uses `-1.000` (Hp60) and `-1` (ap60), stored as NULL
 - **Source**: GFZ Potsdam (`https://kp.gfz.de/en/hp30-hp60/data`)
 - **Update modes**: Same as `hpo_hp30`
+
+### `goes_xrs` - GOES X-Ray Sensor (1-min)
+
+1-minute averaged solar X-ray irradiance. Unified across legacy (GOES-13/14/15,
+2-channel XRS) and GOES-R (16+, 4-channel redundant XRS).
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| satellite | SMALLINT | NOT NULL | Satellite number (13..19) |
+| datetime | TIMESTAMP | NOT NULL | Observation time (UTC) |
+| xrs_a_flux_w_m2 | REAL | NULL | Short band flux, 0.5-4 A (W/m^2). Filled for all satellites |
+| xrs_b_flux_w_m2 | REAL | NULL | Long band flux, 1-8 A (W/m^2). Primary flare band |
+| xrs_a1_flux_w_m2 | REAL | NULL | GOES-R redundant channel A1 |
+| xrs_a2_flux_w_m2 | REAL | NULL | GOES-R redundant channel A2 |
+| xrs_b1_flux_w_m2 | REAL | NULL | GOES-R redundant channel B1 |
+| xrs_b2_flux_w_m2 | REAL | NULL | GOES-R redundant channel B2 |
+| xrs_a_flag | SMALLINT | NULL | Short band quality flag |
+| xrs_b_flag | SMALLINT | NULL | Long band quality flag |
+| is_goes_r | BOOLEAN | NOT NULL | True for GOES-16+, False for legacy |
+
+- **Primary Key**: `(satellite, datetime)`
+- **Indexes**: `datetime`, `satellite`
+- **Source (GOES-R)**: `data.ngdc.noaa.gov/.../goes{NN}/l2/data/xrsf-l2-avg1m/{YYYY}/{MM}/`
+- **Source (legacy)**: `www.ncei.noaa.gov/.../science/xrs/goes{NN}/xrsf-l2-avg1m_science/{YYYY}/{MM}/`
+- **Query convention**: always read `xrs_b_flux_w_m2` for the long-band flux; the
+  column is populated for every satellite and every generation.
+
+### `goes_mag` - GOES Magnetometer (1-min)
+
+1-minute averaged geomagnetic field at geostationary orbit. GOES-R series only
+in current scope (Phase 1). Legacy `magn-l2-hires` exists but would require
+downsampling — deferred to Phase 2.
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| satellite | SMALLINT | NOT NULL | Satellite number (16..19) |
+| datetime | TIMESTAMP | NOT NULL | Observation time (UTC) |
+| bx_nt | REAL | NULL | B-field X component (nT) |
+| by_nt | REAL | NULL | B-field Y component (nT) |
+| bz_nt | REAL | NULL | B-field Z component (nT) |
+| bt_nt | REAL | NULL | Total field magnitude (nT) |
+| coord_frame | VARCHAR(8) | NULL | Frame tag: `EPN`, `GSE`, `GSM`, `VDH` (native L2 frame, no rotation) |
+| mag_flag | INTEGER | NULL | Data-quality bitmask (GOES-R DQF can be wider than 16 bits) |
+
+- **Primary Key**: `(satellite, datetime)`
+- **Indexes**: `datetime`, `satellite`
+- **Source**: `data.ngdc.noaa.gov/.../goes{NN}/l2/data/magn-l2-avg1m/{YYYY}/{MM}/`
+
+### `goes_proton` - GOES Integral Proton Flux (1-min)
+
+1-minute integral proton flux derived from SGPS differential channels via
+partial-channel integration. GOES-R series only (SGPS L2 avg1m is not archived
+before 2020-11).
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| satellite | SMALLINT | NOT NULL | Satellite number (16..19) |
+| datetime | TIMESTAMP | NOT NULL | Observation time (UTC) |
+| proton_flux_gt1mev | REAL | NULL | Integral flux > 1 MeV (pfu = p / (cm^2 sr s)) |
+| proton_flux_gt5mev | REAL | NULL | Integral flux > 5 MeV |
+| proton_flux_gt10mev | REAL | NULL | Integral flux > 10 MeV (SWPC SEP threshold channel) |
+| proton_flux_gt30mev | REAL | NULL | Integral flux > 30 MeV |
+| proton_flux_gt50mev | REAL | NULL | Integral flux > 50 MeV |
+| proton_flux_gt60mev | REAL | NULL | Integral flux > 60 MeV |
+| proton_flux_gt100mev | REAL | NULL | Integral flux > 100 MeV |
+| proton_flag | SMALLINT | NULL | Data-quality summary (e.g., `IntDQFerrSum`) |
+
+- **Primary Key**: `(satellite, datetime)`
+- **Indexes**: `datetime`, `satellite`
+- **Source**: `data.ngdc.noaa.gov/.../goes{NN}/l2/data/sgps-l2-avg1m/{YYYY}/{MM}/`
+- **Derivation**: Sensor-averaged differential flux is integrated per-channel
+  using `integral(>T) = Sum_c diff_flux[c] * max(0, upper[c] - max(T, lower[c]))`.
+  Channels above a threshold contribute fully; a channel spanning the threshold
+  contributes only its upper portion. Channels above all available energy bins
+  leave the column NaN.
+
+### `sw_30min` - 30-min Aggregation (OMNI + HPo)
+
+30-minute aggregation of OMNI 1-min and HPo Hp30. 21 solar-wind aggregations
+(avg/min/max for V, Np, T, Bx, By, Bz, Bt) plus ap30 and hp30. See
+`sw_30min_spec.md` for aggregation rules.
+
+- **Primary Key**: `datetime`
+- **Source tables**: `omni_high_resolution`, `hpo_hp30`
+- **Build command**: `swdb build sw-30min --start-year 2010 --end-year 2026`
 
 ---
 
