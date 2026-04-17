@@ -80,20 +80,21 @@ def process_downloaded_files(
     records = []
 
     for file_path in fits_files:
-        meta = validate_fits(str(file_path), check_quality=False)
+        vr = validate_fits(str(file_path), check_quality=False)
 
-        if isinstance(meta, str):
+        if not vr.success:
             # Invalid file: move to appropriate error directory
-            error_dir = root / dir_config.get(meta, 'invalid_file')
+            error_dir = root / dir_config.get(vr.error, 'invalid_file')
             error_dir.mkdir(parents=True, exist_ok=True)
             target_path = error_dir / file_path.name
 
             shutil.move(str(file_path), str(target_path))
-            result[meta] = result.get(meta, 0) + 1
+            result[vr.error] = result.get(vr.error, 0) + 1
             result['processed'] += 1
             continue
 
         # Valid file: move to target directory
+        meta = vr.metadata
         dt = tai_to_utc(meta['datetime'], telescope)
         target_dir = get_target_path(download_root, telescope, dt)
         target_dir.mkdir(parents=True, exist_ok=True)
