@@ -416,43 +416,52 @@ def _resolve_proton_column(ds, threshold_mev: int) -> np.ndarray | None:
     return _numeric_column(_first_var(ds, candidates))
 
 
-def _match_sgps_channel(energy_arr: np.ndarray, threshold_mev: int,
-                        rel_tol: float = 0.10) -> int | None:
-    """Find the SGPS channel whose effective energy best matches a threshold.
+def _integrate_differential(diff_flux: np.ndarray, lower_kev: np.ndarray,
+                            upper_kev: np.ndarray,
+                            threshold_mev: float) -> np.ndarray:
+    """Derive integral proton flux above a threshold from differential flux.
 
-    Returns None if the nearest channel is outside rel_tol relative tolerance,
-    which prevents e.g. >60 MeV from being silently filled with the 49.9 MeV
-    channel.
+    Uses the standard partial-channel sum:
+        integral(>T) = Σ_c DiffFlux[c] × max(0, Upper[c] − max(T, Lower[c]))
+
+    When the threshold falls inside a channel, only the portion of the channel
+    above T contributes. Channels entirely below T contribute 0. Units: if
+    DiffFlux is in protons/(cm²·sr·keV·s) and energies in keV, the result is
+    protons/(cm²·sr·s) (pfu).
 
     Args:
-        energy_arr: 1-D array of channel effective energies (MeV).
-        threshold_mev: Target integral-flux threshold.
-        rel_tol: Relative tolerance (fraction of threshold).
+        diff_flux: Differential flux array shaped (time, channel).
+        lower_kev: 1-D array of channel lower energy bounds in keV.
+        upper_kev: 1-D array of channel upper energy bounds in keV.
+        threshold_mev: Integral-flux threshold in MeV.
 
     Returns:
-        Channel index or None if no acceptable match.
+        1-D array of shape (time,) with integral flux; NaN when the row's
+        input was all-NaN or when the threshold exceeds all channel upper
+        bounds.
     """
-    if energy_arr.size == 0:
-        return None
-    diffs = np.abs(energy_arr - threshold_mev)
-    idx = int(np.argmin(diffs))
-    nearest = float(energy_arr[idx])
-    lo = threshold_mev * (1.0 - rel_tol)
-    hi = threshold_mev * (1.0 + rel_tol)
-    return idx if lo <= nearest <= hi else None
+    threshold_kev = threshold_mev * 1000.0
+    widths = np.maximum(0.0, upper_kev - np.maximum(threshold_kev, lower_kev))
+    if widths.sum() == 0:
+        return np.full(diff_flux.shape[0], np.nan)
+    integral = np.nansum(diff_flux * widths[np.newaxis, :], axis=1)
+    all_nan_rows = np.all(np.isnan(diff_flux), axis=1)
+    integral[all_nan_rows] = np.nan
+    return integral
 
 
 def parse_goes_proton_netcdf(path: str, satellite: int) -> pd.DataFrame:
-    """Parse a GOES proton integral-flux netCDF file.
+    """Parse a GOES proton flux netCDF file.
 
     Handles two layouts:
-      - GOES-R SGPS: AvgIntProtonFlux 2-D (time, channel) with
-        IntegralProtonEffectiveEnergy giving per-channel energies.
+      - GOES-R SGPS: AvgDiffProtonFlux (time, sensor, channel) plus
+        DiffProtonLowerEnergy / DiffProtonUpperEnergy (sensor, channel).
+        Schema threshold columns are derived by integrating the differential
+        flux above each threshold (partial-channel sum).
       - Legacy EPS/EPEAD: per-threshold named scalar columns.
 
-    For SGPS, channels are matched to our schema thresholds by nearest
-    effective energy within 10% relative tolerance; unmatched thresholds
-    (e.g. >60 MeV has no corresponding SGPS channel) are left NaN → NULL.
+    Thresholds above all differential channels' upper bounds (e.g. >500 MeV
+    relative to SGPS diff channels that top out at 404 MeV) are left NaN.
 
     Args:
         path: Path to the netCDF file.
@@ -482,35 +491,37 @@ def parse_goes_proton_netcdf(path: str, satellite: int) -> pd.DataFrame:
             "datetime": times.values,
         }
 
-        # Try SGPS (GOES-R) multi-channel integral flux first.
-        flux_var = _first_var(ds, ["AvgIntProtonFlux"])
-        energy_var = _first_var(ds, ["IntegralProtonEffectiveEnergy"])
+        # Try SGPS (GOES-R) differential-integration first.
+        diff_var = _first_var(ds, ["AvgDiffProtonFlux"])
+        lower_var = _first_var(ds, ["DiffProtonLowerEnergy"])
+        upper_var = _first_var(ds, ["DiffProtonUpperEnergy"])
         resolved = False
 
-        if flux_var is not None and energy_var is not None:
-            flux_arr = np.asarray(flux_var.values, dtype=np.float64)
-            energy_arr = np.asarray(energy_var.values, dtype=np.float64)
+        if diff_var is not None and lower_var is not None and upper_var is not None:
+            diff_arr = np.asarray(diff_var.values, dtype=np.float64)
+            lower_arr = np.asarray(lower_var.values, dtype=np.float64)
+            upper_arr = np.asarray(upper_var.values, dtype=np.float64)
 
-            # Collapse sensor dimension if present: (time, sensor, channel) →
-            # average across sensors; (sensor, channel) → average across sensors.
-            if flux_arr.ndim == 3:
-                flux_arr = np.nanmean(flux_arr, axis=1)
-            if energy_arr.ndim == 2:
-                energy_arr = np.nanmean(energy_arr, axis=0)
+            # Collapse sensor axis: flux (time, sensor, channel) → (time, ch);
+            # energies (sensor, channel) → (channel,).
+            if diff_arr.ndim == 3:
+                diff_arr = np.nanmean(diff_arr, axis=1)
+            if lower_arr.ndim == 2:
+                lower_arr = np.nanmean(lower_arr, axis=0)
+            if upper_arr.ndim == 2:
+                upper_arr = np.nanmean(upper_arr, axis=0)
 
-            if (flux_arr.ndim == 2 and flux_arr.shape[0] == n
-                    and energy_arr.ndim == 1
-                    and flux_arr.shape[1] == energy_arr.shape[0]):
+            if (diff_arr.ndim == 2 and diff_arr.shape[0] == n
+                    and lower_arr.ndim == 1 and upper_arr.ndim == 1
+                    and diff_arr.shape[1] == lower_arr.shape[0] == upper_arr.shape[0]):
                 resolved = True
                 for threshold in _PROTON_THRESHOLDS_MEV:
-                    idx = _match_sgps_channel(energy_arr, threshold)
-                    col_name = f"proton_flux_gt{threshold}mev"
-                    if idx is None:
-                        columns[col_name] = np.full(n, np.nan)
-                    else:
-                        columns[col_name] = _fill(flux_arr[:, idx])
+                    integral = _integrate_differential(
+                        diff_arr, lower_arr, upper_arr, float(threshold),
+                    )
+                    columns[f"proton_flux_gt{threshold}mev"] = integral
 
-        # Legacy fallback: look for per-threshold named scalar variables.
+        # Legacy fallback: per-threshold named scalar columns.
         if not resolved:
             for threshold in _PROTON_THRESHOLDS_MEV:
                 columns[f"proton_flux_gt{threshold}mev"] = _fill(
