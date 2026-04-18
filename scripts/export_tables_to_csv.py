@@ -5,6 +5,7 @@ tables as one CSV per table into a target directory. Uses PostgreSQL
 COPY TO STDOUT for efficient server-side streaming.
 """
 import argparse
+import os
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -42,8 +43,14 @@ def export_table(db, table: str, order_by: str, output_path: Path) -> int:
         f"COPY (SELECT * FROM {table} ORDER BY {order_by}) "
         f"TO STDOUT WITH CSV HEADER"
     )
-    with db.conn.cursor() as cur, open(output_path, 'w') as f:
-        cur.copy_expert(copy_sql, f)
+    # psycopg2 copy_expert requires binary mode on Python 3.
+    # fsync ensures bytes are committed to disk (important for NAS mounts)
+    # before we stat() the file size.
+    with db.conn.cursor() as cur:
+        with open(output_path, 'wb') as f:
+            cur.copy_expert(copy_sql, f)
+            f.flush()
+            os.fsync(f.fileno())
         return cur.rowcount
 
 
