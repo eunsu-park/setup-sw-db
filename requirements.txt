@@ -6,6 +6,6 @@ requests
 urllib3
 pyyaml
 pyarrow
-egghouse
+egghouse @ git+https://github.com/eunsu-park/egghouse.git
 xarray
 netCDF4
